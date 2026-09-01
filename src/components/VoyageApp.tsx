@@ -14,6 +14,7 @@ export function VoyageApp() {
   const [calendar, setCalendar] = useState<VoyageCalendar | null>(null);
   const [state, setState] = useState<LoadState>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [panelOpen, setPanelOpen] = useState(true);
 
   const load = useCallback(async (login?: string, demo = false) => {
     setState("loading");
@@ -159,56 +160,83 @@ export function VoyageApp() {
         days={calendar.days}
       />
 
-      <aside className="pointer-events-none absolute left-4 top-4 z-10 w-[min(100%-2rem,22rem)]">
-        <div className="pointer-events-auto rounded-xl border border-white/15 bg-slate-950/70 p-4 backdrop-blur-md">
-          <p className="text-xs uppercase tracking-[0.18em] text-emerald-300/80">
-            git-voyage
-          </p>
-          <h1 className="mt-1 text-lg font-semibold">커밋잔디 위를 활공</h1>
-          <p className="mt-2 text-sm leading-relaxed text-slate-300">
-            Python은 유럽풍, Java는 조선풍, HTML/CSS는 일본풍 건물이
-            됩니다.
-          </p>
-          <button
-            className="mt-3 text-xs text-slate-400 underline-offset-2 hover:text-slate-200 hover:underline"
-            type="button"
-            onClick={() => {
-              setCalendar(null);
-              setState("idle");
-              setError(null);
-            }}
-          >
-            다른 계정·기간 선택
-          </button>
-          <dl className="mt-4 grid grid-cols-2 gap-2 text-sm">
-            <div>
-              <dt className="text-slate-400">도시</dt>
-              <dd>{calendar.name ?? calendar.login}</dd>
+      <aside className="pointer-events-none absolute left-3 top-3 z-30 w-[min(100%-1.5rem,22rem)] sm:left-4 sm:top-4">
+        {panelOpen ? (
+          <div className="pointer-events-auto rounded-xl border border-white/15 bg-slate-950/70 p-4 backdrop-blur-md">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-[0.18em] text-emerald-300/80">
+                  git-voyage
+                </p>
+                <h1 className="mt-1 text-lg font-semibold">
+                  커밋잔디 위를 활공
+                </h1>
+              </div>
+              <button
+                className="min-h-10 min-w-10 rounded-full border border-white/10 text-lg text-slate-300 hover:bg-white/10"
+                type="button"
+                aria-label="정보창 닫기"
+                onClick={() => setPanelOpen(false)}
+              >
+                ×
+              </button>
             </div>
-            <div>
-              <dt className="text-slate-400">기여</dt>
-              <dd>{calendar.totalContributions.toLocaleString("ko-KR")}</dd>
-            </div>
-            <div className="col-span-2">
-              <dt className="text-slate-400">기간</dt>
-              <dd>
-                {calendar.from} ~ {calendar.to}
-                {calendar.source === "demo" ? " · 데모" : ""}
-              </dd>
-            </div>
-          </dl>
-          {calendar.source === "github" &&
-          calendar.totalContributions === 0 ? (
-            <p className="mt-3 rounded-lg bg-amber-950/70 px-3 py-2 text-xs leading-5 text-amber-200">
-              선택한 기간에 API로 확인할 수 있는 공개 기여가 없습니다.
-              GitHub에 로그인한 본인 화면의 비공개 잔디와는 다를 수
-              있습니다.
+            <p className="mt-2 text-sm leading-relaxed text-slate-300">
+              Python은 유럽풍, Java는 조선풍, HTML/CSS는 일본풍 건물이
+              됩니다.
             </p>
-          ) : null}
-        </div>
+            <button
+              className="mt-3 text-xs text-slate-400 underline-offset-2 hover:text-slate-200 hover:underline"
+              type="button"
+              onClick={() => {
+                setCalendar(null);
+                setState("idle");
+                setError(null);
+              }}
+            >
+              다른 계정·기간 선택
+            </button>
+            <dl className="mt-4 grid grid-cols-2 gap-2 text-sm">
+              <div>
+                <dt className="text-slate-400">도시</dt>
+                <dd>{calendar.name ?? calendar.login}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-400">기여</dt>
+                <dd>
+                  {calendar.totalContributions.toLocaleString("ko-KR")}
+                </dd>
+              </div>
+              <div className="col-span-2">
+                <dt className="text-slate-400">기간</dt>
+                <dd>
+                  {calendar.from} ~ {calendar.to}
+                  {calendar.source === "demo" ? " · 데모" : ""}
+                </dd>
+              </div>
+            </dl>
+            {calendar.source === "github" &&
+            calendar.totalContributions === 0 ? (
+              <p className="mt-3 rounded-lg bg-amber-950/70 px-3 py-2 text-xs leading-5 text-amber-200">
+                선택한 기간에 API로 확인할 수 있는 공개 기여가 없습니다.
+                GitHub에 로그인한 본인 화면의 비공개 잔디와는 다를 수
+                있습니다.
+              </p>
+            ) : null}
+          </div>
+        ) : (
+          <button
+            className="pointer-events-auto min-h-11 rounded-full border border-white/15 bg-slate-950/70 px-4 text-sm font-medium text-slate-100 shadow-lg backdrop-blur-md hover:bg-slate-900/80"
+            type="button"
+            aria-label="도시 정보 열기"
+            onClick={() => setPanelOpen(true)}
+          >
+            정보 열기
+          </button>
+        )}
       </aside>
 
-      <div className="pointer-events-none absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-full border border-white/10 bg-slate-950/65 px-4 py-2 text-xs text-slate-200 backdrop-blur-md">
+      <div className="desktop-controls pointer-events-none absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-full border border-white/10 bg-slate-950/65 px-4 py-2 text-xs text-slate-200 backdrop-blur-md">
         WASD / 방향키로 기울이기 · Shift 가속 · 마우스로 시점 회전 · V 비행기 추적
       </div>
     </div>

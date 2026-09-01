@@ -1,10 +1,20 @@
 "use client";
 
 import { useFrame, useThree } from "@react-three/fiber";
+import type { RefObject } from "react";
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 
 type KeyMap = Record<string, boolean>;
+
+export type FlightControlsState = {
+  turn: number;
+  climb: number;
+  boost: boolean;
+  lookDeltaX: number;
+  lookDeltaY: number;
+  followRequest: number;
+};
 
 function useKeys() {
   const keys = useRef<KeyMap>({});
@@ -52,13 +62,14 @@ function PaperDart() {
 
 type PaperPlaneProps = {
   start: THREE.Vector3;
+  touchControls?: RefObject<FlightControlsState>;
 };
 
 const MOUSE_SENSITIVITY = 0.0035;
 const CAMERA_ROTATION_DAMPING = 9;
 const MAX_POINTER_DELTA = 80;
 
-export function PaperPlane({ start }: PaperPlaneProps) {
+export function PaperPlane({ start, touchControls }: PaperPlaneProps) {
   const group = useRef<THREE.Group>(null);
   const keys = useKeys();
   const { camera, gl } = useThree();
@@ -70,6 +81,7 @@ export function PaperPlane({ start }: PaperPlaneProps) {
   const targetViewPitch = useRef(-0.08);
   const followCamera = useRef(true);
   const vWasDown = useRef(false);
+  const handledFollowRequest = useRef(0);
   const lastPointer = useRef<{ x: number; y: number } | null>(null);
   const position = useRef(start.clone());
   const lookPoint = useRef(new THREE.Vector3());
@@ -137,20 +149,49 @@ export function PaperPlane({ start }: PaperPlaneProps) {
   useFrame((_, delta) => {
     const dt = Math.min(delta, 0.05);
     const pressed = keys.current;
-    const turn =
+    const touch = touchControls?.current;
+    const keyboardTurn =
       (pressed.KeyD || pressed.ArrowRight ? 1 : 0) -
       (pressed.KeyA || pressed.ArrowLeft ? 1 : 0);
-    const climb =
+    const keyboardClimb =
       (pressed.KeyW || pressed.ArrowUp ? 1 : 0) -
       (pressed.KeyS || pressed.ArrowDown ? 1 : 0);
-    const boost = pressed.ShiftLeft || pressed.ShiftRight ? 1.75 : 1;
+    const turn = THREE.MathUtils.clamp(
+      keyboardTurn + (touch?.turn ?? 0),
+      -1,
+      1,
+    );
+    const climb = THREE.MathUtils.clamp(
+      keyboardClimb + (touch?.climb ?? 0),
+      -1,
+      1,
+    );
+    const boost =
+      pressed.ShiftLeft || pressed.ShiftRight || touch?.boost ? 1.75 : 1;
 
-    if (pressed.KeyV) {
+    if (touch && (touch.lookDeltaX !== 0 || touch.lookDeltaY !== 0)) {
+      followCamera.current = false;
+      targetViewYaw.current -= touch.lookDeltaX * MOUSE_SENSITIVITY;
+      targetViewPitch.current = THREE.MathUtils.clamp(
+        targetViewPitch.current - touch.lookDeltaY * MOUSE_SENSITIVITY,
+        -0.72,
+        0.52,
+      );
+      touch.lookDeltaX = 0;
+      touch.lookDeltaY = 0;
+    }
+
+    const touchFollowRequested =
+      touch && touch.followRequest !== handledFollowRequest.current;
+    if (pressed.KeyV || touchFollowRequested) {
       if (!vWasDown.current) {
         followCamera.current = true;
         targetViewYaw.current = yaw.current;
         targetViewPitch.current = pitch.current;
         vWasDown.current = true;
+      }
+      if (touch) {
+        handledFollowRequest.current = touch.followRequest;
       }
     } else {
       vWasDown.current = false;
