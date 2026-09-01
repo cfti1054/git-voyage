@@ -22,6 +22,23 @@ query($login: String!, $from: DateTime!, $to: DateTime!) {
           }
         }
       }
+      commitContributionsByRepository(maxRepositories: 100) {
+        repository {
+          primaryLanguage {
+            name
+            color
+          }
+        }
+        contributions(
+          first: 100
+          orderBy: { field: OCCURRED_AT, direction: ASC }
+        ) {
+          nodes {
+            occurredAt
+            commitCount
+          }
+        }
+      }
     }
   }
 }
@@ -46,6 +63,20 @@ type GraphQLResponse = {
           totalContributions: number;
           weeks: { contributionDays: GraphQLDay[] }[];
         };
+        commitContributionsByRepository: {
+          repository: {
+            primaryLanguage: {
+              name: string;
+              color: string | null;
+            } | null;
+          };
+          contributions: {
+            nodes: {
+              occurredAt: string;
+              commitCount: number;
+            }[];
+          };
+        }[];
       };
     } | null;
   };
@@ -73,11 +104,12 @@ function addDays(date: Date, days: number): Date {
 }
 
 function* dateChunks(from: Date, to: Date): Generator<[Date, Date]> {
-  let start = from;
-  while (start < to) {
-    const end = addDays(start, CHUNK_DAYS);
-    yield [start, end < to ? end : to];
-    start = end;
+  let start = new Date(from);
+  while (start <= to) {
+    const nextStart = addDays(start, CHUNK_DAYS);
+    const chunkEnd = new Date(nextStart.getTime() - 1);
+    yield [start, chunkEnd < to ? chunkEnd : to];
+    start = nextStart;
   }
 }
 
@@ -121,6 +153,10 @@ export async function fetchContributionCalendar(
   to: Date,
 ): Promise<VoyageCalendar> {
   const byDate = new Map<string, ContributionDay>();
+  const languagesByDate = new Map<
+    string,
+    Map<string, { count: number; color: string | null }>
+  >();
   let profile: Pick<VoyageCalendar, "login" | "name" | "avatarUrl"> | null =
     null;
 
@@ -141,8 +177,31 @@ export async function fetchContributionCalendar(
       name: user.name,
       avatarUrl: user.avatarUrl,
     };
+    for (const repository of user.contributionsCollection
+      .commitContributionsByRepository) {
+      const language = repository.repository.primaryLanguage;
+      if (!language) {
+        continue;
+      }
+      for (const contribution of repository.contributions.nodes) {
+        const date = contribution.occurredAt.slice(0, 10);
+        const languages =
+          languagesByDate.get(date) ??
+          new Map<string, { count: number; color: string | null }>();
+        const current = languages.get(language.name);
+        languages.set(language.name, {
+          count: (current?.count ?? 0) + contribution.commitCount,
+          color: language.color,
+        });
+        languagesByDate.set(date, languages);
+      }
+    }
     for (const week of user.contributionsCollection.contributionCalendar.weeks) {
       for (const day of week.contributionDays) {
+        const currentDate = new Date(`${day.date}T00:00:00Z`);
+        if (currentDate < from || currentDate > to) {
+          continue;
+        }
         byDate.set(day.date, {
           date: day.date,
           count: day.contributionCount,
@@ -150,13 +209,16 @@ export async function fetchContributionCalendar(
           color: day.color,
           weekday: day.weekday,
           weekIndex: 0,
+          year: currentDate.getUTCFullYear(),
+          language: null,
+          languageColor: null,
         });
       }
     }
   }
 
   if (!profile) {
-    throw new GitHubApiError("기여 달력을 비었습니다.", 502);
+    throw new GitHubApiError("기여 달력이 비어 있습니다.", 502);
   }
 
   const days = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
@@ -164,17 +226,22 @@ export async function fetchContributionCalendar(
     throw new GitHubApiError("기여 날짜가 없습니다.", 502);
   }
 
-  const first = new Date(`${days[0].date}T00:00:00Z`);
-  const firstWeekday = first.getUTCDay();
-  const origin = addDays(first, -firstWeekday);
-
   for (const day of days) {
     const current = new Date(`${day.date}T00:00:00Z`);
-    const diff = Math.floor(
-      (current.getTime() - origin.getTime()) / 86_400_000,
-    );
-    day.weekIndex = Math.floor(diff / 7);
+    const yearStart = new Date(Date.UTC(current.getUTCFullYear(), 0, 1));
+    const dayOfYear =
+      Math.floor((current.getTime() - yearStart.getTime()) / 86_400_000) + 1;
+    day.weekIndex = Math.min(52, Math.floor((dayOfYear - 1) / 7));
     day.weekday = current.getUTCDay();
+    const languages = languagesByDate.get(day.date);
+    const dominant = languages
+      ? [...languages.entries()].sort(
+          ([nameA, valueA], [nameB, valueB]) =>
+            valueB.count - valueA.count || nameA.localeCompare(nameB),
+        )[0]
+      : undefined;
+    day.language = dominant?.[0] ?? null;
+    day.languageColor = dominant?.[1].color ?? null;
   }
 
   const totalContributions = days.reduce((sum, day) => sum + day.count, 0);
@@ -189,9 +256,14 @@ export async function fetchContributionCalendar(
   };
 }
 
-export function lastYearRange(now = new Date()): { from: Date; to: Date } {
-  const to = now;
-  const from = new Date(now);
-  from.setUTCFullYear(from.getUTCFullYear() - 1);
-  return { from, to };
+export function calendarYearRange(
+  fromYear: number,
+  toYear: number,
+  now = new Date(),
+): { from: Date; to: Date } {
+  const yearEnd = new Date(Date.UTC(toYear, 11, 31, 23, 59, 59, 999));
+  return {
+    from: new Date(Date.UTC(fromYear, 0, 1)),
+    to: yearEnd > now ? now : yearEnd,
+  };
 }

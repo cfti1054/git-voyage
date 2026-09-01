@@ -54,16 +54,85 @@ type PaperPlaneProps = {
   start: THREE.Vector3;
 };
 
+const MOUSE_SENSITIVITY = 0.0035;
+const CAMERA_ROTATION_DAMPING = 9;
+const MAX_POINTER_DELTA = 80;
+
 export function PaperPlane({ start }: PaperPlaneProps) {
   const group = useRef<THREE.Group>(null);
   const keys = useKeys();
-  const { camera } = useThree();
+  const { camera, gl } = useThree();
   const yaw = useRef(-Math.PI / 2);
   const pitch = useRef(-0.08);
+  const viewYaw = useRef(-Math.PI / 2);
+  const viewPitch = useRef(-0.08);
+  const targetViewYaw = useRef(-Math.PI / 2);
+  const targetViewPitch = useRef(-0.08);
+  const followCamera = useRef(true);
+  const vWasDown = useRef(false);
+  const lastPointer = useRef<{ x: number; y: number } | null>(null);
   const position = useRef(start.clone());
   const lookPoint = useRef(new THREE.Vector3());
   const cameraTarget = useRef(new THREE.Vector3());
   const forward = useRef(new THREE.Vector3());
+  const viewForward = useRef(new THREE.Vector3());
+
+  useEffect(() => {
+    const canvas = gl.domElement;
+
+    const setPointer = (x: number, y: number) => {
+      lastPointer.current = { x, y };
+    };
+
+    const onPointerMove = (event: PointerEvent) => {
+      if (lastPointer.current === null) {
+        setPointer(event.clientX, event.clientY);
+        return;
+      }
+
+      const deltaX = THREE.MathUtils.clamp(
+        event.clientX - lastPointer.current.x,
+        -MAX_POINTER_DELTA,
+        MAX_POINTER_DELTA,
+      );
+      const deltaY = THREE.MathUtils.clamp(
+        event.clientY - lastPointer.current.y,
+        -MAX_POINTER_DELTA,
+        MAX_POINTER_DELTA,
+      );
+      setPointer(event.clientX, event.clientY);
+
+      if (deltaX === 0 && deltaY === 0) {
+        return;
+      }
+
+      followCamera.current = false;
+      targetViewYaw.current -= deltaX * MOUSE_SENSITIVITY;
+      targetViewPitch.current = THREE.MathUtils.clamp(
+        targetViewPitch.current - deltaY * MOUSE_SENSITIVITY,
+        -0.72,
+        0.52,
+      );
+    };
+
+    const onPointerEnter = (event: PointerEvent) => {
+      setPointer(event.clientX, event.clientY);
+    };
+
+    const onPointerLeave = () => {
+      lastPointer.current = null;
+    };
+
+    canvas.addEventListener("pointermove", onPointerMove);
+    canvas.addEventListener("pointerenter", onPointerEnter);
+    canvas.addEventListener("pointerleave", onPointerLeave);
+
+    return () => {
+      canvas.removeEventListener("pointermove", onPointerMove);
+      canvas.removeEventListener("pointerenter", onPointerEnter);
+      canvas.removeEventListener("pointerleave", onPointerLeave);
+    };
+  }, [gl]);
 
   useFrame((_, delta) => {
     const dt = Math.min(delta, 0.05);
@@ -75,6 +144,17 @@ export function PaperPlane({ start }: PaperPlaneProps) {
       (pressed.KeyW || pressed.ArrowUp ? 1 : 0) -
       (pressed.KeyS || pressed.ArrowDown ? 1 : 0);
     const boost = pressed.ShiftLeft || pressed.ShiftRight ? 1.75 : 1;
+
+    if (pressed.KeyV) {
+      if (!vWasDown.current) {
+        followCamera.current = true;
+        targetViewYaw.current = yaw.current;
+        targetViewPitch.current = pitch.current;
+        vWasDown.current = true;
+      }
+    } else {
+      vWasDown.current = false;
+    }
 
     yaw.current -= turn * 1.35 * dt;
     pitch.current = THREE.MathUtils.clamp(
@@ -99,14 +179,40 @@ export function PaperPlane({ start }: PaperPlaneProps) {
       );
     }
 
+    if (followCamera.current) {
+      targetViewYaw.current = yaw.current;
+      targetViewPitch.current = pitch.current;
+    }
+
+    viewYaw.current = THREE.MathUtils.damp(
+      viewYaw.current,
+      targetViewYaw.current,
+      CAMERA_ROTATION_DAMPING,
+      dt,
+    );
+    viewPitch.current = THREE.MathUtils.damp(
+      viewPitch.current,
+      targetViewPitch.current,
+      CAMERA_ROTATION_DAMPING,
+      dt,
+    );
+
+    const cameraYaw = viewYaw.current;
+    const cameraPitch = viewPitch.current;
+
     cameraTarget.current
       .set(0, 3.4, 11)
-      .applyEuler(new THREE.Euler(pitch.current * 0.35, yaw.current, 0, "YXZ"))
+      .applyEuler(
+        new THREE.Euler(cameraPitch * 0.35, cameraYaw, 0, "YXZ"),
+      )
       .add(position.current);
     camera.position.lerp(cameraTarget.current, 1 - Math.pow(0.012, dt));
+    viewForward.current
+      .set(0, 0, -1)
+      .applyEuler(new THREE.Euler(cameraPitch, cameraYaw, 0, "YXZ"));
     lookPoint.current
       .copy(position.current)
-      .addScaledVector(forward.current, 10);
+      .addScaledVector(viewForward.current, 10);
     camera.lookAt(lookPoint.current);
   });
 

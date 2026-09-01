@@ -12,6 +12,9 @@ export type ContributionDay = {
   color: string;
   weekday: number;
   weekIndex: number;
+  year: number;
+  language: string | null;
+  languageColor: string | null;
 };
 
 export type VoyageCalendar = {
@@ -30,7 +33,11 @@ export type BuildingCell = {
   count: number;
   level: number;
   color: string;
+  language: string | null;
+  theme: BuildingTheme;
   x: number;
   z: number;
   height: number;
 };
+
+export type BuildingTheme = "european" | "joseon" | "japanese" | "modern";

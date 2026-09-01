@@ -1,12 +1,30 @@
 # git-voyage
 
-GitHub 커밋잔디를 3D 도시로 만들고, 종이비행기로 하늘을 활공하는 웹 앱입니다.
+GitHub 커밋잔디를 다년간의 3D 도시로 만들고, 종이비행기로 하늘을 활공하는 웹 앱입니다.
 
-한 칸이 건물 하나입니다. 기여가 많을수록 빌딩이 높아지고 초록이 진해지며, 0커밋 칸은 공원입니다. 최근 1년 잔디를 53×7 격자로 그립니다.
+## 주요 기능
 
-## 실행
+- GitHub 계정명과 연도 범위로 공개 기여 조회
+- 연도별 53×7 구역을 연결한 다년간의 3D 도시
+- 기여 수에 따른 건물 높이와 0기여 날짜의 공원 표현
+- 저장소 주 언어에 따른 저폴리곤 건축 양식
+- 종이비행기 비행 및 마우스 자유 시점
+- 계정·기간별 API 응답 1시간 캐시
 
-Node.js 20+ 
+한 칸은 하루를 나타냅니다. 각 연도는 53×7 구역이며, 선택한 여러 연도가 도시의 깊이 방향으로 이어집니다.
+
+## 언어별 건축 양식
+
+- Python: 유럽풍
+- Java: 조선풍
+- HTML/CSS: 일본풍
+- 그 외 또는 언어를 알 수 없는 기여: 현대식
+
+날짜별 언어는 개별 변경 파일을 분석한 값이 아닙니다. 해당 날짜에 커밋한 공개 저장소의 `primaryLanguage` 중 커밋 수가 가장 많은 언어를 사용합니다.
+
+## 로컬 실행
+
+Node.js 20 이상이 필요합니다.
 
 ```bash
 npm install
@@ -14,14 +32,57 @@ copy .env.example .env.local
 npm run dev
 ```
 
-[http://localhost:3000](http://localhost:3000)에서 데모 도시가 열립니다.
+PowerShell 실행 정책 때문에 `npm.ps1`이 차단되면 `npm` 대신 `npm.cmd`를 사용합니다.
 
-실제 GitHub 아이디를 쓰려면 [토큰](https://github.com/settings/tokens)을 만들어 `.env.local`의 `GITHUB_TOKEN`에 넣고 서버를 재실행한 뒤, 화면에서 username을 입력합니다. Fine-grained는 Profile 읽기(`read:user`)면 됩니다. 토큰은 서버에서만 사용합니다.
+```powershell
+npm.cmd install
+npm.cmd run dev
+```
+
+실행 후 [http://localhost:3000](http://localhost:3000)에서 계정명과 시작·종료 연도를 입력하거나 데모 도시를 선택합니다. 한 번에 최대 10년까지 조회할 수 있습니다.
+
+## GitHub 토큰 설정
+
+실제 계정을 조회하려면 서버용 [GitHub Personal Access Token](https://github.com/settings/tokens)이 필요합니다.
+
+1. `.env.example`을 `.env.local`로 복사합니다.
+2. 아래와 같이 토큰을 입력합니다.
+3. 개발 서버를 완전히 재시작합니다.
+
+```env
+GITHUB_TOKEN=발급한_서버용_토큰
+```
+
+방문자는 토큰을 입력하지 않습니다. 토큰은 서버에서만 사용되며 `.env.local`은 Git에 포함되지 않습니다. 공개 서비스에는 별도의 GitHub 계정에서 비공개 저장소 권한 없이 발급한 토큰을 권장합니다.
+
+GitHub에 로그인한 본인 화면에서만 보이는 비공개 기여는 공개 조회 결과와 다를 수 있습니다. 서버 토큰이 접근할 수 없는 비공개 기여와 저장소 언어는 도시에 포함되지 않습니다.
+
+## Railway 배포
+
+1. 저장소를 Railway 서비스에 연결합니다.
+2. 서비스의 Variables에 `GITHUB_TOKEN`을 등록합니다.
+3. 서비스를 재배포합니다.
+
+```env
+GITHUB_TOKEN=발급한_서버용_토큰
+```
+
+`.env.local`은 로컬 전용이므로 Railway에 업로드되지 않습니다. 배포 환경에서는 반드시 Railway Variables를 사용해야 합니다. 동일한 계정과 기간의 API 응답은 1시간 캐시됩니다.
 
 ## 조작
 
 - `W` `A` `S` `D` 또는 방향키: 상승·선회·하강
 - `Shift`: 가속
-- 3D 화면을 클릭한 뒤 조작합니다
+- 마우스 이동: 버튼을 누르지 않고 시점 회전
+- `V`: 종이비행기 뒤 추적 시점으로 복귀
+
+## 프로덕션 확인
+
+```bash
+npm run build
+npm run start
+```
+
+## 기술 스택
 
 TypeScript, Next.js, React Three Fiber, GitHub GraphQL API.
