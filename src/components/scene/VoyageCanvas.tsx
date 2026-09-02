@@ -3,9 +3,14 @@
 import { Canvas } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
+import { BUILDING_FOOTPRINT, CELL_SIZE, MAX_HEIGHT } from "@/lib/city";
 import type { ContributionDay } from "@/lib/types";
 import { City, useCityBounds } from "./City";
-import { PaperPlane, type FlightControlsState } from "./PaperPlane";
+import {
+  PaperPlane,
+  type FlightBounds,
+  type FlightControlsState,
+} from "./PaperPlane";
 import { TouchControls } from "./TouchControls";
 
 type VoyageCanvasProps = {
@@ -22,9 +27,25 @@ export function VoyageCanvas({ days }: VoyageCanvasProps) {
     lookDeltaY: 0,
     followRequest: 0,
   });
+  const flightBounds = useMemo<FlightBounds>(
+    () => ({
+      minX: BUILDING_FOOTPRINT / 2,
+      maxX: bounds.cityWidth - CELL_SIZE + BUILDING_FOOTPRINT / 2,
+      minZ: BUILDING_FOOTPRINT / 2,
+      maxZ: bounds.cityDepth - CELL_SIZE + BUILDING_FOOTPRINT / 2,
+      minY: 3,
+      maxY: MAX_HEIGHT + 20,
+    }),
+    [bounds.cityDepth, bounds.cityWidth],
+  );
   const start = useMemo(
-    () => new THREE.Vector3(-14, 18, bounds.cityDepth / 2),
-    [bounds.cityDepth],
+    () =>
+      new THREE.Vector3(
+        flightBounds.minX + CELL_SIZE * 2,
+        18,
+        (flightBounds.minZ + flightBounds.maxZ) / 2,
+      ),
+    [flightBounds],
   );
 
   return (
@@ -53,7 +74,11 @@ export function VoyageCanvas({ days }: VoyageCanvasProps) {
         />
         <ambientLight intensity={0.22} />
         <City days={days} />
-        <PaperPlane start={start} touchControls={touchControls} />
+        <PaperPlane
+          start={start}
+          bounds={flightBounds}
+          touchControls={touchControls}
+        />
       </Canvas>
       <TouchControls controls={touchControls} />
     </>

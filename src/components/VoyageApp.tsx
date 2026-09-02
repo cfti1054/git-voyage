@@ -237,7 +237,7 @@ export function VoyageApp() {
       </aside>
 
       <div className="desktop-controls pointer-events-none absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-full border border-white/10 bg-slate-950/65 px-4 py-2 text-xs text-slate-200 backdrop-blur-md">
-        WASD / 방향키로 기울이기 · Shift 가속 · 마우스로 시점 회전 · V 비행기 추적
+        WASD / 방향키 · Shift 가속 · 마우스 시점 · V 추적 · 3초 무조작 시 자동 비행
       </div>
     </div>
   );

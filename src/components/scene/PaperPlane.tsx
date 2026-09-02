@@ -16,6 +16,15 @@ export type FlightControlsState = {
   followRequest: number;
 };
 
+export type FlightBounds = {
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+  minY: number;
+  maxY: number;
+};
+
 function useKeys() {
   const keys = useRef<KeyMap>({});
 
@@ -62,14 +71,20 @@ function PaperDart() {
 
 type PaperPlaneProps = {
   start: THREE.Vector3;
+  bounds: FlightBounds;
   touchControls?: RefObject<FlightControlsState>;
 };
 
 const MOUSE_SENSITIVITY = 0.0035;
 const CAMERA_ROTATION_DAMPING = 9;
 const MAX_POINTER_DELTA = 80;
+const AUTO_PILOT_DELAY = 3;
 
-export function PaperPlane({ start, touchControls }: PaperPlaneProps) {
+export function PaperPlane({
+  start,
+  bounds,
+  touchControls,
+}: PaperPlaneProps) {
   const group = useRef<THREE.Group>(null);
   const keys = useKeys();
   const { camera, gl } = useThree();
@@ -88,6 +103,8 @@ export function PaperPlane({ start, touchControls }: PaperPlaneProps) {
   const cameraTarget = useRef(new THREE.Vector3());
   const forward = useRef(new THREE.Vector3());
   const viewForward = useRef(new THREE.Vector3());
+  const idleTime = useRef(0);
+  const autoPilotPhase = useRef(0);
 
   useEffect(() => {
     const canvas = gl.domElement;
@@ -156,18 +173,84 @@ export function PaperPlane({ start, touchControls }: PaperPlaneProps) {
     const keyboardClimb =
       (pressed.KeyW || pressed.ArrowUp ? 1 : 0) -
       (pressed.KeyS || pressed.ArrowDown ? 1 : 0);
-    const turn = THREE.MathUtils.clamp(
-      keyboardTurn + (touch?.turn ?? 0),
-      -1,
-      1,
-    );
-    const climb = THREE.MathUtils.clamp(
-      keyboardClimb + (touch?.climb ?? 0),
-      -1,
-      1,
-    );
-    const boost =
-      pressed.ShiftLeft || pressed.ShiftRight || touch?.boost ? 1.75 : 1;
+    const touchTurn = touch?.turn ?? 0;
+    const touchClimb = touch?.climb ?? 0;
+    const manualBoost =
+      pressed.ShiftLeft || pressed.ShiftRight || touch?.boost === true;
+    const hasFlightInput =
+      keyboardTurn !== 0 ||
+      keyboardClimb !== 0 ||
+      Math.abs(touchTurn) > 0.08 ||
+      Math.abs(touchClimb) > 0.08 ||
+      manualBoost;
+
+    if (hasFlightInput) {
+      idleTime.current = 0;
+    } else {
+      idleTime.current += dt;
+    }
+
+    const autoPilot = idleTime.current >= AUTO_PILOT_DELAY;
+    let turn = THREE.MathUtils.clamp(keyboardTurn + touchTurn, -1, 1);
+    let climb = THREE.MathUtils.clamp(keyboardClimb + touchClimb, -1, 1);
+    let boost = manualBoost ? 1.75 : 1;
+
+    if (autoPilot) {
+      autoPilotPhase.current += dt;
+      followCamera.current = true;
+      const wanderingTurn =
+        Math.sin(autoPilotPhase.current * 0.42) * 0.62 +
+        Math.sin(autoPilotPhase.current * 0.17) * 0.22;
+      climb =
+        Math.sin(autoPilotPhase.current * 0.28) * 0.34 +
+        Math.sin(autoPilotPhase.current * 0.11) * 0.12;
+      boost = 1.15;
+
+      const distanceToEdge = Math.min(
+        position.current.x - bounds.minX,
+        bounds.maxX - position.current.x,
+        position.current.z - bounds.minZ,
+        bounds.maxZ - position.current.z,
+      );
+      const edgeMargin = Math.min(
+        28,
+        (bounds.maxX - bounds.minX) * 0.25,
+        (bounds.maxZ - bounds.minZ) * 0.25,
+      );
+      const edgeInfluence = THREE.MathUtils.clamp(
+        1 - distanceToEdge / Math.max(edgeMargin, 1),
+        0,
+        1,
+      );
+
+      const centerX = (bounds.minX + bounds.maxX) / 2;
+      const centerZ = (bounds.minZ + bounds.maxZ) / 2;
+      const desiredYaw = Math.atan2(
+        -(centerX - position.current.x),
+        -(centerZ - position.current.z),
+      );
+      const yawError = Math.atan2(
+        Math.sin(desiredYaw - yaw.current),
+        Math.cos(desiredYaw - yaw.current),
+      );
+      const centerTurn = THREE.MathUtils.clamp(-yawError * 1.2, -1, 1);
+      turn = THREE.MathUtils.lerp(
+        wanderingTurn,
+        centerTurn,
+        edgeInfluence,
+      );
+
+      const targetAltitude = THREE.MathUtils.lerp(
+        bounds.minY,
+        bounds.maxY,
+        0.42,
+      );
+      climb += THREE.MathUtils.clamp(
+        (targetAltitude - position.current.y) * 0.035,
+        -0.45,
+        0.45,
+      );
+    }
 
     if (touch && (touch.lookDeltaX !== 0 || touch.lookDeltaY !== 0)) {
       followCamera.current = false;
@@ -208,7 +291,21 @@ export function PaperPlane({ start, touchControls }: PaperPlaneProps) {
       new THREE.Euler(pitch.current, yaw.current, 0, "YXZ"),
     );
     position.current.addScaledVector(forward.current, 15 * boost * dt);
-    position.current.y = Math.max(2.6, position.current.y);
+    position.current.x = THREE.MathUtils.clamp(
+      position.current.x,
+      bounds.minX,
+      bounds.maxX,
+    );
+    position.current.y = THREE.MathUtils.clamp(
+      position.current.y,
+      bounds.minY,
+      bounds.maxY,
+    );
+    position.current.z = THREE.MathUtils.clamp(
+      position.current.z,
+      bounds.minZ,
+      bounds.maxZ,
+    );
 
     if (group.current) {
       group.current.position.copy(position.current);
