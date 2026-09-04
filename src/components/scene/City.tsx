@@ -1,6 +1,6 @@
 "use client";
 
-import { Text } from "@react-three/drei";
+import { Text, useGLTF } from "@react-three/drei";
 import type { ReactNode } from "react";
 import { useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
@@ -74,6 +74,87 @@ function InstancedLayer({
     </instancedMesh>
   );
 }
+
+const PARK_MODEL_URL = "/models/buildings/park.glb";
+
+type ParkPart = {
+  geometry: THREE.BufferGeometry;
+  material: THREE.Material | THREE.Material[];
+  matrix: THREE.Matrix4;
+};
+
+function ParkPartInstances({
+  cells,
+  part,
+}: {
+  cells: BuildingCell[];
+  part: ParkPart;
+}) {
+  const meshRef = useRef<THREE.InstancedMesh>(null);
+
+  useLayoutEffect(() => {
+    const mesh = meshRef.current;
+    if (!mesh) {
+      return;
+    }
+
+    const placement = new THREE.Matrix4();
+    const instanceMatrix = new THREE.Matrix4();
+
+    cells.forEach((cell, index) => {
+      placement.makeTranslation(cell.x, 0, cell.z);
+      instanceMatrix.multiplyMatrices(placement, part.matrix);
+      mesh.setMatrixAt(index, instanceMatrix);
+    });
+
+    mesh.instanceMatrix.needsUpdate = true;
+  }, [cells, part.matrix]);
+
+  return (
+    <instancedMesh
+      ref={meshRef}
+      args={[part.geometry, part.material, cells.length]}
+      castShadow
+      receiveShadow
+    />
+  );
+}
+
+function ParkInstances({ cells }: { cells: BuildingCell[] }) {
+  const { scene } = useGLTF(PARK_MODEL_URL);
+  const parts = useMemo(() => {
+    scene.updateMatrixWorld(true);
+    const modelParts: ParkPart[] = [];
+
+    scene.traverse((object) => {
+      if (!(object instanceof THREE.Mesh)) {
+        return;
+      }
+
+      modelParts.push({
+        geometry: object.geometry,
+        material: object.material,
+        matrix: object.matrixWorld.clone(),
+      });
+    });
+
+    return modelParts;
+  }, [scene]);
+
+  return (
+    <group>
+      {parts.map((part, index) => (
+        <ParkPartInstances
+          key={`${part.geometry.uuid}-${index}`}
+          cells={cells}
+          part={part}
+        />
+      ))}
+    </group>
+  );
+}
+
+useGLTF.preload(PARK_MODEL_URL);
 
 function bodyHeight(cell: BuildingCell, roofHeight: number) {
   return Math.max(0.8, cell.height - roofHeight);
@@ -246,9 +327,7 @@ function ThemeBuildings({
 }
 
 export function City({ days }: CityProps) {
-  const parkMesh = useRef<THREE.InstancedMesh>(null);
   const city = useMemo(() => toBuildingCells(days), [days]);
-  const dummy = useMemo(() => new THREE.Object3D(), []);
   const buildingsByTheme = useMemo(
     () =>
       ({
@@ -259,20 +338,6 @@ export function City({ days }: CityProps) {
       }) satisfies Record<BuildingTheme, BuildingCell[]>,
     [city.buildings],
   );
-
-  useLayoutEffect(() => {
-    const mesh = parkMesh.current;
-    if (!mesh) {
-      return;
-    }
-    city.parks.forEach((cell, index) => {
-      dummy.position.set(cell.x, cell.height / 2, cell.z);
-      dummy.scale.set(1.15, cell.height, 1.15);
-      dummy.updateMatrix();
-      mesh.setMatrixAt(index, dummy.matrix);
-    });
-    mesh.instanceMatrix.needsUpdate = true;
-  }, [city.parks, dummy]);
 
   return (
     <group>
@@ -287,15 +352,7 @@ export function City({ days }: CityProps) {
       {(Object.keys(buildingsByTheme) as BuildingTheme[]).map((theme) => (
         <ThemeBuildings key={theme} theme={theme} cells={buildingsByTheme[theme]} />
       ))}
-      {city.parks.length > 0 ? (
-        <instancedMesh
-          ref={parkMesh}
-          args={[undefined, undefined, city.parks.length]}
-        >
-          <boxGeometry args={[BUILDING_FOOTPRINT, 1, BUILDING_FOOTPRINT]} />
-          <meshStandardMaterial color="#5d7a55" roughness={0.95} />
-        </instancedMesh>
-      ) : null}
+      {city.parks.length > 0 ? <ParkInstances cells={city.parks} /> : null}
       {city.years.slice(1).map(({ year }, index) => {
         const z = (index + 1) * ROWS_PER_YEAR * CELL_SIZE - CELL_SIZE / 2;
         return (
