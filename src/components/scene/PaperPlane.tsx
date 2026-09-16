@@ -25,6 +25,55 @@ export type FlightBounds = {
   maxY: number;
 };
 
+export type FlightObstacle = {
+  date: string;
+  x: number;
+  z: number;
+  height: number;
+  halfWidth: number;
+};
+
+export type FlightObstacleMap = ReadonlyMap<string, FlightObstacle>;
+
+const PLANE_COLLISION_RADIUS = 0.75;
+const PLANE_COLLISION_HEIGHT = 0.35;
+const ROOF_CLEARANCE = 1.5;
+
+export function flightObstacleKey(column: number, row: number) {
+  return `${column}:${row}`;
+}
+
+function obstacleAt(
+  x: number,
+  z: number,
+  obstacles: FlightObstacleMap,
+  cellSize: number,
+) {
+  return obstacles.get(
+    flightObstacleKey(Math.round(x / cellSize), Math.round(z / cellSize)),
+  );
+}
+
+function collidesWithBuilding(
+  point: THREE.Vector3,
+  obstacles: FlightObstacleMap,
+  cellSize: number,
+) {
+  const obstacle = obstacleAt(point.x, point.z, obstacles, cellSize);
+  if (!obstacle) {
+    return false;
+  }
+
+  const collisionHalfWidth = obstacle.halfWidth + PLANE_COLLISION_RADIUS;
+  const insideFootprint =
+    Math.abs(point.x - obstacle.x) < collisionHalfWidth &&
+    Math.abs(point.z - obstacle.z) < collisionHalfWidth;
+  const belowRoof =
+    point.y - PLANE_COLLISION_HEIGHT < obstacle.height + ROOF_CLEARANCE;
+
+  return insideFootprint && belowRoof;
+}
+
 function useKeys() {
   const keys = useRef<KeyMap>({});
 
@@ -72,7 +121,10 @@ function PaperDart() {
 type PaperPlaneProps = {
   start: THREE.Vector3;
   bounds: FlightBounds;
+  obstacles: FlightObstacleMap;
+  obstacleCellSize: number;
   touchControls?: RefObject<FlightControlsState>;
+  onNearbyDayChange?: (date: string | null) => void;
 };
 
 const MOUSE_SENSITIVITY = 0.0035;
@@ -83,7 +135,10 @@ const AUTO_PILOT_DELAY = 3;
 export function PaperPlane({
   start,
   bounds,
+  obstacles,
+  obstacleCellSize,
   touchControls,
+  onNearbyDayChange,
 }: PaperPlaneProps) {
   const group = useRef<THREE.Group>(null);
   const keys = useKeys();
@@ -103,6 +158,9 @@ export function PaperPlane({
   const cameraTarget = useRef(new THREE.Vector3());
   const forward = useRef(new THREE.Vector3());
   const viewForward = useRef(new THREE.Vector3());
+  const movement = useRef(new THREE.Vector3());
+  const collisionProbe = useRef(new THREE.Vector3());
+  const nearbyDate = useRef<string | null>(null);
   const idleTime = useRef(0);
   const autoPilotPhase = useRef(0);
 
@@ -290,22 +348,89 @@ export function PaperPlane({
     forward.current.set(0, 0, -1).applyEuler(
       new THREE.Euler(pitch.current, yaw.current, 0, "YXZ"),
     );
-    position.current.addScaledVector(forward.current, 15 * boost * dt);
-    position.current.x = THREE.MathUtils.clamp(
-      position.current.x,
-      bounds.minX,
-      bounds.maxX,
-    );
-    position.current.y = THREE.MathUtils.clamp(
-      position.current.y,
+    movement.current.copy(forward.current).multiplyScalar(18 * boost * dt);
+
+    const nextY = THREE.MathUtils.clamp(
+      position.current.y + movement.current.y,
       bounds.minY,
       bounds.maxY,
     );
-    position.current.z = THREE.MathUtils.clamp(
+    collisionProbe.current.set(
+      position.current.x,
+      nextY,
       position.current.z,
+    );
+    if (
+      !collidesWithBuilding(
+        collisionProbe.current,
+        obstacles,
+        obstacleCellSize,
+      )
+    ) {
+      position.current.y = nextY;
+    }
+
+    const nextX = THREE.MathUtils.clamp(
+      position.current.x + movement.current.x,
+      bounds.minX,
+      bounds.maxX,
+    );
+    collisionProbe.current.set(
+      nextX,
+      position.current.y,
+      position.current.z,
+    );
+    const blockedX = collidesWithBuilding(
+      collisionProbe.current,
+      obstacles,
+      obstacleCellSize,
+    );
+    if (!blockedX) {
+      position.current.x = nextX;
+    }
+
+    const nextZ = THREE.MathUtils.clamp(
+      position.current.z + movement.current.z,
       bounds.minZ,
       bounds.maxZ,
     );
+    collisionProbe.current.set(
+      position.current.x,
+      position.current.y,
+      nextZ,
+    );
+    const blockedZ = collidesWithBuilding(
+      collisionProbe.current,
+      obstacles,
+      obstacleCellSize,
+    );
+    if (!blockedZ) {
+      position.current.z = nextZ;
+    }
+
+    if (autoPilot && (blockedX || blockedZ)) {
+      yaw.current += 1.8 * dt;
+    }
+
+    const nearbyObstacle = obstacleAt(
+      position.current.x,
+      position.current.z,
+      obstacles,
+      obstacleCellSize,
+    );
+    const nextNearbyDate =
+      nearbyObstacle &&
+      Math.hypot(
+        position.current.x - nearbyObstacle.x,
+        position.current.z - nearbyObstacle.z,
+      ) <=
+        obstacleCellSize * 0.8
+        ? nearbyObstacle.date
+        : null;
+    if (nextNearbyDate !== nearbyDate.current) {
+      nearbyDate.current = nextNearbyDate;
+      onNearbyDayChange?.(nextNearbyDate);
+    }
 
     if (group.current) {
       group.current.position.copy(position.current);

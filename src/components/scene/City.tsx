@@ -7,6 +7,7 @@ import * as THREE from "three";
 import {
   BUILDING_FOOTPRINT,
   CELL_SIZE,
+  CITY_MODEL_SCALE,
   ROWS_PER_YEAR,
   toBuildingCells,
 } from "@/lib/city";
@@ -99,11 +100,20 @@ function ParkPartInstances({
     }
 
     const placement = new THREE.Matrix4();
+    const modelScale = new THREE.Matrix4().makeScale(
+      CITY_MODEL_SCALE,
+      CITY_MODEL_SCALE,
+      CITY_MODEL_SCALE,
+    );
+    const scaledPart = new THREE.Matrix4().multiplyMatrices(
+      modelScale,
+      part.matrix,
+    );
     const instanceMatrix = new THREE.Matrix4();
 
     cells.forEach((cell, index) => {
       placement.makeTranslation(cell.x, 0, cell.z);
-      instanceMatrix.multiplyMatrices(placement, part.matrix);
+      instanceMatrix.multiplyMatrices(placement, scaledPart);
       mesh.setMatrixAt(index, instanceMatrix);
     });
 
@@ -156,6 +166,10 @@ function ParkInstances({ cells }: { cells: BuildingCell[] }) {
 
 useGLTF.preload(PARK_MODEL_URL);
 
+function modelSize(value: number) {
+  return value * CITY_MODEL_SCALE;
+}
+
 function bodyHeight(cell: BuildingCell, roofHeight: number) {
   return Math.max(0.8, cell.height - roofHeight);
 }
@@ -176,18 +190,20 @@ function ThemeBuildings({
           color="#c8b69a"
           tintBodies
           transform={(cell, object) => {
-            const height = bodyHeight(cell, 1.5);
+            const height = bodyHeight(cell, modelSize(1.5));
             object.position.set(cell.x, height / 2, cell.z);
             object.scale.set(BUILDING_FOOTPRINT, height, BUILDING_FOOTPRINT);
           }}
         />
         <InstancedLayer
           cells={cells}
-          geometry={<coneGeometry args={[1.82, 1.5, 4]} />}
+          geometry={
+            <coneGeometry args={[modelSize(1.82), modelSize(1.5), 4]} />
+          }
           color="#70483d"
           transform={(cell, object) => {
-            const height = bodyHeight(cell, 1.5);
-            object.position.set(cell.x, height + 0.75, cell.z);
+            const height = bodyHeight(cell, modelSize(1.5));
+            object.position.set(cell.x, height + modelSize(0.75), cell.z);
             object.rotation.y = Math.PI / 4;
           }}
         />
@@ -196,9 +212,17 @@ function ThemeBuildings({
           geometry={<boxGeometry args={[1, 1, 1]} />}
           color="#ead8b9"
           transform={(cell, object) => {
-            const height = bodyHeight(cell, 1.5);
-            object.position.set(cell.x, Math.max(0.3, height - 0.18), cell.z);
-            object.scale.set(BUILDING_FOOTPRINT + 0.18, 0.18, BUILDING_FOOTPRINT + 0.18);
+            const height = bodyHeight(cell, modelSize(1.5));
+            object.position.set(
+              cell.x,
+              Math.max(modelSize(0.3), height - modelSize(0.18)),
+              cell.z,
+            );
+            object.scale.set(
+              BUILDING_FOOTPRINT + modelSize(0.18),
+              modelSize(0.18),
+              BUILDING_FOOTPRINT + modelSize(0.18),
+            );
           }}
         />
       </group>
@@ -214,8 +238,8 @@ function ThemeBuildings({
           color="#9f6846"
           tintBodies
           transform={(cell, object) => {
-            const height = bodyHeight(cell, 1.25);
-            object.position.set(cell.x, 0.22 + height / 2, cell.z);
+            const height = bodyHeight(cell, modelSize(1.25));
+            object.position.set(cell.x, modelSize(0.22) + height / 2, cell.z);
             object.scale.set(BUILDING_FOOTPRINT * 0.82, height, BUILDING_FOOTPRINT * 0.82);
           }}
         />
@@ -224,28 +248,36 @@ function ThemeBuildings({
           geometry={<boxGeometry args={[1, 1, 1]} />}
           color="#77736b"
           transform={(cell, object) => {
-            object.position.set(cell.x, 0.2, cell.z);
-            object.scale.set(BUILDING_FOOTPRINT, 0.4, BUILDING_FOOTPRINT);
+            object.position.set(cell.x, modelSize(0.2), cell.z);
+            object.scale.set(
+              BUILDING_FOOTPRINT,
+              modelSize(0.4),
+              BUILDING_FOOTPRINT,
+            );
           }}
         />
         <InstancedLayer
           cells={cells}
-          geometry={<coneGeometry args={[2.05, 0.78, 4]} />}
+          geometry={
+            <coneGeometry args={[modelSize(2.05), modelSize(0.78), 4]} />
+          }
           color="#293b35"
           transform={(cell, object) => {
-            const height = bodyHeight(cell, 1.25);
-            object.position.set(cell.x, height + 0.83, cell.z);
+            const height = bodyHeight(cell, modelSize(1.25));
+            object.position.set(cell.x, height + modelSize(0.83), cell.z);
             object.rotation.y = Math.PI / 4;
             object.scale.y = 0.82;
           }}
         />
         <InstancedLayer
           cells={cells}
-          geometry={<coneGeometry args={[1.62, 0.58, 4]} />}
+          geometry={
+            <coneGeometry args={[modelSize(1.62), modelSize(0.58), 4]} />
+          }
           color="#40564c"
           transform={(cell, object) => {
-            const height = bodyHeight(cell, 1.25);
-            object.position.set(cell.x, height + 1.2, cell.z);
+            const height = bodyHeight(cell, modelSize(1.25));
+            object.position.set(cell.x, height + modelSize(1.2), cell.z);
             object.rotation.y = Math.PI / 4;
           }}
         />
@@ -262,28 +294,32 @@ function ThemeBuildings({
           color="#d5c7a6"
           tintBodies
           transform={(cell, object) => {
-            const height = bodyHeight(cell, 1.35);
+            const height = bodyHeight(cell, modelSize(1.35));
             object.position.set(cell.x, height / 2, cell.z);
             object.scale.set(BUILDING_FOOTPRINT * 0.78, height, BUILDING_FOOTPRINT * 0.78);
           }}
         />
         <InstancedLayer
           cells={cells}
-          geometry={<coneGeometry args={[2.08, 0.62, 4]} />}
+          geometry={
+            <coneGeometry args={[modelSize(2.08), modelSize(0.62), 4]} />
+          }
           color="#4e4740"
           transform={(cell, object) => {
-            const height = bodyHeight(cell, 1.35);
-            object.position.set(cell.x, height + 0.31, cell.z);
+            const height = bodyHeight(cell, modelSize(1.35));
+            object.position.set(cell.x, height + modelSize(0.31), cell.z);
             object.rotation.y = Math.PI / 4;
           }}
         />
         <InstancedLayer
           cells={cells}
-          geometry={<coneGeometry args={[1.55, 0.52, 4]} />}
+          geometry={
+            <coneGeometry args={[modelSize(1.55), modelSize(0.52), 4]} />
+          }
           color="#62584d"
           transform={(cell, object) => {
-            const height = bodyHeight(cell, 1.35);
-            object.position.set(cell.x, height + 0.78, cell.z);
+            const height = bodyHeight(cell, modelSize(1.35));
+            object.position.set(cell.x, height + modelSize(0.78), cell.z);
             object.rotation.y = Math.PI / 4;
           }}
         />
@@ -292,9 +328,13 @@ function ThemeBuildings({
           geometry={<boxGeometry args={[1, 1, 1]} />}
           color="#6b3f2c"
           transform={(cell, object) => {
-            const height = bodyHeight(cell, 1.35);
+            const height = bodyHeight(cell, modelSize(1.35));
             object.position.set(cell.x, height * 0.52, cell.z);
-            object.scale.set(BUILDING_FOOTPRINT * 0.9, 0.13, BUILDING_FOOTPRINT * 0.9);
+            object.scale.set(
+              BUILDING_FOOTPRINT * 0.9,
+              modelSize(0.13),
+              BUILDING_FOOTPRINT * 0.9,
+            );
           }}
         />
       </group>
@@ -318,8 +358,12 @@ function ThemeBuildings({
         geometry={<boxGeometry args={[1, 1, 1]} />}
         color="#b8d8df"
         transform={(cell, object) => {
-          object.position.set(cell.x, cell.height + 0.12, cell.z);
-          object.scale.set(BUILDING_FOOTPRINT * 0.7, 0.24, BUILDING_FOOTPRINT * 0.7);
+          object.position.set(cell.x, cell.height + modelSize(0.12), cell.z);
+          object.scale.set(
+            BUILDING_FOOTPRINT * 0.7,
+            modelSize(0.24),
+            BUILDING_FOOTPRINT * 0.7,
+          );
         }}
       />
     </group>
@@ -346,7 +390,12 @@ export function City({ days }: CityProps) {
         position={[city.cityWidth / 2, 0, city.cityDepth / 2]}
         receiveShadow
       >
-        <planeGeometry args={[city.cityWidth + 80, city.cityDepth + 80]} />
+        <planeGeometry
+          args={[
+            city.cityWidth + modelSize(80),
+            city.cityDepth + modelSize(80),
+          ]}
+        />
         <meshStandardMaterial color="#3a3f45" roughness={0.92} />
       </mesh>
       {(Object.keys(buildingsByTheme) as BuildingTheme[]).map((theme) => (
@@ -357,7 +406,13 @@ export function City({ days }: CityProps) {
         const z = (index + 1) * ROWS_PER_YEAR * CELL_SIZE - CELL_SIZE / 2;
         return (
           <mesh key={`divider-${year}`} position={[city.cityWidth / 2, 0.08, z]}>
-            <boxGeometry args={[city.cityWidth + 5, 0.12, 0.16]} />
+            <boxGeometry
+              args={[
+                city.cityWidth + modelSize(5),
+                modelSize(0.12),
+                modelSize(0.16),
+              ]}
+            />
             <meshStandardMaterial color="#d9cfb5" roughness={0.9} />
           </mesh>
         );
@@ -365,9 +420,9 @@ export function City({ days }: CityProps) {
       {city.years.map(({ year, z }) => (
         <Text
           key={year}
-          position={[-5.5, 0.1, z - CELL_SIZE / 2]}
+          position={[modelSize(-5.5), modelSize(0.1), z - CELL_SIZE / 2]}
           rotation={[-Math.PI / 2, 0, Math.PI / 2]}
-          fontSize={2.1}
+          fontSize={modelSize(2.1)}
           color="#f1ead8"
           anchorX="center"
           anchorY="middle"

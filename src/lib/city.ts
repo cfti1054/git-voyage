@@ -5,13 +5,16 @@ import type {
   ContributionLevel,
 } from "./types";
 
-export const CELL_SIZE = 4.2;
-export const BUILDING_FOOTPRINT = 2.4;
+// World scale is intentionally larger than the paper plane so flying between
+// blocks feels like travelling through a city instead of viewing a diorama.
+export const CITY_MODEL_SCALE = 3.5;
+export const CELL_SIZE = 14.7;
+export const BUILDING_FOOTPRINT = 8.4;
 export const GRID_COLUMNS = 53;
 export const ROWS_PER_YEAR = 7;
-export const MIN_HEIGHT = 1.2;
-export const MAX_HEIGHT = 46;
-export const PARK_HEIGHT = 0.18;
+export const MIN_HEIGHT = 12;
+export const MAX_HEIGHT = 145;
+export const PARK_HEIGHT = 0.63;
 
 const LEVEL_RANK: Record<ContributionLevel, number> = {
   NONE: 0,

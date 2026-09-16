@@ -158,6 +158,8 @@ export function VoyageApp() {
       <VoyageCanvas
         key={`${calendar.login}-${calendar.source}-${calendar.from}`}
         days={calendar.days}
+        login={calendar.login}
+        source={calendar.source}
       />
 
       <aside className="pointer-events-none absolute left-3 top-3 z-30 w-[min(100%-1.5rem,22rem)] sm:left-4 sm:top-4">

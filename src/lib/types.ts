@@ -41,3 +41,11 @@ export type BuildingCell = {
 };
 
 export type BuildingTheme = "european" | "joseon" | "japanese" | "modern";
+
+export type CommitDetail = {
+  sha: string;
+  message: string;
+  repository: string;
+  url: string;
+  committedAt: string | null;
+};
