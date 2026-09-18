@@ -5,16 +5,18 @@ import type {
   ContributionLevel,
 } from "./types";
 
-// World scale is intentionally larger than the paper plane so flying between
-// blocks feels like travelling through a city instead of viewing a diorama.
-export const CITY_MODEL_SCALE = 3.5;
-export const CELL_SIZE = 14.7;
-export const BUILDING_FOOTPRINT = 8.4;
+// 1 world unit is treated as roughly 1 metre. The paper plane is about 1.35 m
+// long, while a city block building is 24 m wide with a 10 m street gap.
+// Blender props use a slightly smaller multiplier so roof overhangs remain
+// inside each 34 m cell.
+export const CITY_MODEL_SCALE = 7.5;
+export const CELL_SIZE = 34;
+export const BUILDING_FOOTPRINT = 24;
 export const GRID_COLUMNS = 53;
 export const ROWS_PER_YEAR = 7;
-export const MIN_HEIGHT = 12;
-export const MAX_HEIGHT = 145;
-export const PARK_HEIGHT = 0.63;
+export const MIN_HEIGHT = 15;
+export const MAX_HEIGHT = 180;
+export const PARK_HEIGHT = 1;
 
 const LEVEL_RANK: Record<ContributionLevel, number> = {
   NONE: 0,

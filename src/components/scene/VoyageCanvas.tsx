@@ -6,7 +6,6 @@ import * as THREE from "three";
 import {
   BUILDING_FOOTPRINT,
   CELL_SIZE,
-  CITY_MODEL_SCALE,
   MAX_HEIGHT,
   MIN_HEIGHT,
 } from "@/lib/city";
@@ -77,8 +76,8 @@ export function VoyageCanvas({ days, login, source }: VoyageCanvasProps) {
       maxX: bounds.cityWidth - CELL_SIZE + BUILDING_FOOTPRINT / 2,
       minZ: BUILDING_FOOTPRINT / 2,
       maxZ: bounds.cityDepth - CELL_SIZE + BUILDING_FOOTPRINT / 2,
-      minY: CITY_MODEL_SCALE * 2,
-      maxY: MAX_HEIGHT + CITY_MODEL_SCALE * 16,
+      minY: 2.5,
+      maxY: MAX_HEIGHT + 80,
     }),
     [bounds.cityDepth, bounds.cityWidth],
   );
@@ -86,7 +85,7 @@ export function VoyageCanvas({ days, login, source }: VoyageCanvasProps) {
     () =>
       new THREE.Vector3(
         CELL_SIZE * 2.5,
-        MIN_HEIGHT * 3,
+        MIN_HEIGHT * 2.5,
         CELL_SIZE / 2,
       ),
     [],
@@ -146,7 +145,7 @@ export function VoyageCanvas({ days, login, source }: VoyageCanvasProps) {
         camera={{
           fov: 54,
           near: 0.1,
-          far: 2000,
+          far: 3200,
           position: [
             -CELL_SIZE * 3,
             MIN_HEIGHT * 3,
@@ -161,10 +160,10 @@ export function VoyageCanvas({ days, login, source }: VoyageCanvasProps) {
         }}
       >
         <color attach="background" args={["#9eb7c9"]} />
-        <fog attach="fog" args={["#9eb7c9", 250, 1000]} />
+        <fog attach="fog" args={["#9eb7c9", 350, 1800]} />
         <hemisphereLight args={["#d7e6f2", "#5c6b52", 0.85]} />
         <directionalLight
-          position={[100, 150, 50]}
+          position={[280, 420, 140]}
           intensity={1.15}
           color="#fff4d8"
         />
