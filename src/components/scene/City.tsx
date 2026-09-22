@@ -9,6 +9,7 @@ import {
   CELL_SIZE,
   CITY_MODEL_SCALE,
   ROWS_PER_YEAR,
+  heightFromContributionLevel,
   toBuildingCells,
 } from "@/lib/city";
 import type { BuildingCell, BuildingTheme, ContributionDay } from "@/lib/types";
@@ -77,6 +78,8 @@ function InstancedLayer({
 }
 
 const PARK_MODEL_URL = "/models/buildings/park.glb";
+const MODERN_HIGHRISE_URL =
+  "/models/buildings/Modern_HighRise_4Level_Demo.glb";
 
 type ParkPart = {
   geometry: THREE.BufferGeometry;
@@ -165,6 +168,112 @@ function ParkInstances({ cells }: { cells: BuildingCell[] }) {
 }
 
 useGLTF.preload(PARK_MODEL_URL);
+useGLTF.preload(MODERN_HIGHRISE_URL);
+
+type GltfPart = {
+  geometry: THREE.BufferGeometry;
+  material: THREE.Material | THREE.Material[];
+  matrix: THREE.Matrix4;
+};
+
+function ModernHighRisePartInstances({
+  cells,
+  part,
+  modelFootprint,
+  modelHeight,
+}: {
+  cells: BuildingCell[];
+  part: GltfPart;
+  modelFootprint: number;
+  modelHeight: number;
+}) {
+  const meshRef = useRef<THREE.InstancedMesh>(null);
+  const scaleXZ = BUILDING_FOOTPRINT / modelFootprint;
+
+  useLayoutEffect(() => {
+    const mesh = meshRef.current;
+    if (!mesh) {
+      return;
+    }
+
+    const placement = new THREE.Matrix4();
+    const scaleMatrix = new THREE.Matrix4();
+    const instanceMatrix = new THREE.Matrix4();
+
+    const scaledPart = new THREE.Matrix4();
+
+    cells.forEach((cell, index) => {
+      const targetHeight = heightFromContributionLevel(cell.level);
+      const scaleY = targetHeight / modelHeight;
+      scaleMatrix.makeScale(scaleXZ, scaleY, scaleXZ);
+      scaledPart.multiplyMatrices(scaleMatrix, part.matrix);
+      placement.makeTranslation(cell.x, 0, cell.z);
+      instanceMatrix.multiplyMatrices(placement, scaledPart);
+      mesh.setMatrixAt(index, instanceMatrix);
+    });
+
+    mesh.instanceMatrix.needsUpdate = true;
+  }, [cells, modelFootprint, modelHeight, part.matrix, scaleXZ]);
+
+  return (
+    <instancedMesh
+      ref={meshRef}
+      args={[part.geometry, part.material, cells.length]}
+      castShadow
+      receiveShadow
+    />
+  );
+}
+
+function ModernHighRiseInstances({ cells }: { cells: BuildingCell[] }) {
+  const { scene } = useGLTF(MODERN_HIGHRISE_URL);
+  const model = useMemo(() => {
+    scene.updateMatrixWorld(true);
+    const bounds = new THREE.Box3().setFromObject(scene);
+    const size = new THREE.Vector3();
+    bounds.getSize(size);
+    const parts: GltfPart[] = [];
+
+    scene.traverse((object) => {
+      if (!(object instanceof THREE.Mesh)) {
+        return;
+      }
+      if (object.name === "Floor_Grass") {
+        return;
+      }
+
+      parts.push({
+        geometry: object.geometry,
+        material: object.material,
+        matrix: object.matrixWorld.clone(),
+      });
+    });
+
+    return {
+      parts,
+      modelFootprint: Math.max(size.x, size.z),
+      modelHeight: size.y,
+    };
+  }, [scene]);
+
+  if (cells.length === 0 || model.parts.length === 0) {
+    return null;
+  }
+
+  return (
+    <group>
+      {model.parts.map((part, index) => (
+        <ModernHighRisePartInstances
+          key={`${part.geometry.uuid}-${index}`}
+          cells={cells}
+          part={part}
+          modelFootprint={model.modelFootprint}
+          modelHeight={model.modelHeight}
+        />
+      ))}
+    </group>
+  );
+}
 
 function modelSize(value: number) {
   return value * CITY_MODEL_SCALE;
@@ -341,33 +450,7 @@ function ThemeBuildings({
     );
   }
 
-  return (
-    <group>
-      <InstancedLayer
-        cells={cells}
-        geometry={<boxGeometry args={[1, 1, 1]} />}
-        color="#78909c"
-        tintBodies
-        transform={(cell, object) => {
-          object.position.set(cell.x, cell.height / 2, cell.z);
-          object.scale.set(BUILDING_FOOTPRINT, cell.height, BUILDING_FOOTPRINT);
-        }}
-      />
-      <InstancedLayer
-        cells={cells}
-        geometry={<boxGeometry args={[1, 1, 1]} />}
-        color="#b8d8df"
-        transform={(cell, object) => {
-          object.position.set(cell.x, cell.height + modelSize(0.12), cell.z);
-          object.scale.set(
-            BUILDING_FOOTPRINT * 0.7,
-            modelSize(0.24),
-            BUILDING_FOOTPRINT * 0.7,
-          );
-        }}
-      />
-    </group>
-  );
+  return <ModernHighRiseInstances cells={cells} />;
 }
 
 export function City({ days }: CityProps) {

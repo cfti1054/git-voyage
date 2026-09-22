@@ -39,6 +39,7 @@ Blender로 만든 glTF 모델은 `public/models/buildings/`에 둡니다.
 | 파일 | 용도 |
 |---|---|
 | `park.glb` | 0기여(커밋 없음) 칸 공원 |
+| `Modern_HighRise_4Level_Demo.glb` | 현대식 건물(잔디 4단계 1~4 → 높이 4단) |
 
 추가 건물·공원 모델도 같은 폴더에 넣고 코드에서 연동할 수 있습니다.
 

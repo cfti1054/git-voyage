@@ -52,6 +52,13 @@ export function heightFromCount(count: number, maxCount: number): number {
   return MIN_HEIGHT + curved * (MAX_HEIGHT - MIN_HEIGHT);
 }
 
+/** GitHub 잔디 4단계(1~4)에 맞춘 고정 층 높이. modern glb용 */
+export function heightFromContributionLevel(level: number): number {
+  const rank = Math.min(4, Math.max(1, level));
+  const t = (rank - 1) / 3;
+  return MIN_HEIGHT + t * (MAX_HEIGHT - MIN_HEIGHT);
+}
+
 export function themeFromLanguage(language: string | null): BuildingTheme {
   switch (language?.toLowerCase()) {
     case "python":
@@ -100,16 +107,21 @@ export function toBuildingCells(days: ContributionDay[]): {
         const day = bySlot.get(`${year}:${column}:${row}`);
         const count = day?.count ?? 0;
         const language = day?.language ?? null;
+        const level = day ? levelRank(day.level) : 0;
+        const theme = themeFromLanguage(language);
         const cell: BuildingCell = {
           date: day?.date ?? `${year}-empty-${column}-${row}`,
           count,
-          level: day ? levelRank(day.level) : 0,
+          level,
           color: day ? buildingColor(day) : "#5d7a55",
           language,
-          theme: themeFromLanguage(language),
+          theme,
           x: column * CELL_SIZE,
           z: (index * ROWS_PER_YEAR + row) * CELL_SIZE,
-          height: heightFromCount(count, maxCount),
+          height:
+            count > 0 && theme === "modern"
+              ? heightFromContributionLevel(level)
+              : heightFromCount(count, maxCount),
         };
 
         if (count > 0) {
