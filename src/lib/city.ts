@@ -52,11 +52,58 @@ export function heightFromCount(count: number, maxCount: number): number {
   return MIN_HEIGHT + curved * (MAX_HEIGHT - MIN_HEIGHT);
 }
 
-/** GitHub 잔디 4단계(1~4)에 맞춘 고정 층 높이. modern glb용 */
-export function heightFromContributionLevel(level: number): number {
-  const rank = Math.min(4, Math.max(1, level));
-  const t = (rank - 1) / 3;
-  return MIN_HEIGHT + t * (MAX_HEIGHT - MIN_HEIGHT);
+/**
+ * modern_building_{세트}_{단계}Level_Demo.glb의 실제 최고 높이(m).
+ * glb는 CITY_MODEL_SCALE 균일 스케일로 놓이므로 이 값이 곧 충돌 높이다.
+ * 단계별 범위가 겹치지 않아서 단계가 높을수록 항상 더 높다.
+ */
+export const MODERN_BUILDING_HEIGHTS: readonly (readonly number[])[] = [
+  [15, 70, 125, 180],
+  [22, 62, 133, 190],
+  [16, 78, 118, 172],
+  [26, 56, 138, 168],
+];
+export const MODERN_BUILDING_SETS = MODERN_BUILDING_HEIGHTS.length;
+export const PARK_VARIANTS = 2;
+
+/**
+ * 단계별로 (열 짝홀, 행 짝홀) 칸 종류 → 세트 번호 순서를 다르게 섞는다.
+ * 각 행은 0~3의 순열이어야 한다.
+ */
+const LEVEL_SET_ORDER: readonly (readonly number[])[] = [
+  [0, 1, 2, 3],
+  [2, 0, 3, 1],
+  [1, 3, 0, 2],
+  [3, 2, 1, 0],
+];
+
+export function modernBuildingUrl(variant: number, level: number): string {
+  return `/models/buildings/modern_building_${variant + 1}_${level}Level_Demo.glb`;
+}
+
+export function parkUrl(variant: number): string {
+  return variant === 0
+    ? "/models/buildings/park.glb"
+    : `/models/buildings/park${variant + 1}.glb`;
+}
+
+function cellHash(column: number, row: number, salt: number): number {
+  let h = Math.imul(column, 374761393) ^ Math.imul(row, 668265263) ^ salt;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return (h ^ (h >>> 16)) >>> 0;
+}
+
+/**
+ * 주변 8칸은 열이나 행의 짝홀이 반드시 다르다. 그래서 짝홀 조합(4종)을
+ * 세트 번호로 쓰면 같은 단계 이웃끼리 같은 glb가 놓이지 않는다.
+ */
+function modernSetFor(level: number, column: number, globalRow: number): number {
+  const parityClass = (column % 2) * 2 + (globalRow % 2);
+  return LEVEL_SET_ORDER[level - 1][parityClass];
+}
+
+function quarterTurn(column: number, globalRow: number): number {
+  return (cellHash(column, globalRow, 0x5bd1e995) % 4) * (Math.PI / 2);
 }
 
 export function themeFromLanguage(language: string | null): BuildingTheme {
@@ -107,8 +154,15 @@ export function toBuildingCells(days: ContributionDay[]): {
         const day = bySlot.get(`${year}:${column}:${row}`);
         const count = day?.count ?? 0;
         const language = day?.language ?? null;
-        const level = day ? levelRank(day.level) : 0;
+        const globalRow = index * ROWS_PER_YEAR + row;
+        const level =
+          count > 0 ? Math.min(4, Math.max(1, day ? levelRank(day.level) : 1)) : 0;
         const theme = themeFromLanguage(language);
+        const variant =
+          count > 0 && theme === "modern"
+            ? modernSetFor(level, column, globalRow)
+            : 0;
+        const rotation = quarterTurn(column, globalRow);
         const cell: BuildingCell = {
           date: day?.date ?? `${year}-empty-${column}-${row}`,
           count,
@@ -117,17 +171,24 @@ export function toBuildingCells(days: ContributionDay[]): {
           language,
           theme,
           x: column * CELL_SIZE,
-          z: (index * ROWS_PER_YEAR + row) * CELL_SIZE,
+          z: globalRow * CELL_SIZE,
           height:
             count > 0 && theme === "modern"
-              ? heightFromContributionLevel(level)
+              ? MODERN_BUILDING_HEIGHTS[variant][level - 1]
               : heightFromCount(count, maxCount),
+          variant,
+          rotation,
         };
 
         if (count > 0) {
           buildings.push(cell);
         } else {
-          parks.push({ ...cell, height: PARK_HEIGHT, color: "#5d7a55" });
+          parks.push({
+            ...cell,
+            height: PARK_HEIGHT,
+            color: "#5d7a55",
+            variant: cellHash(column, globalRow, 0x27d4eb2f) % PARK_VARIANTS,
+          });
         }
       }
     }

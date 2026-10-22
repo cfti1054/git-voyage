@@ -8,8 +8,11 @@ import {
   BUILDING_FOOTPRINT,
   CELL_SIZE,
   CITY_MODEL_SCALE,
+  MODERN_BUILDING_SETS,
+  PARK_VARIANTS,
   ROWS_PER_YEAR,
-  heightFromContributionLevel,
+  modernBuildingUrl,
+  parkUrl,
   toBuildingCells,
 } from "@/lib/city";
 import type { BuildingCell, BuildingTheme, ContributionDay } from "@/lib/types";
@@ -77,22 +80,26 @@ function InstancedLayer({
   );
 }
 
-const PARK_MODEL_URL = "/models/buildings/park.glb";
-const MODERN_HIGHRISE_URL =
-  "/models/buildings/Modern_HighRise_4Level_Demo.glb";
+const PARK_MODEL_URLS = Array.from({ length: PARK_VARIANTS }, (_, variant) =>
+  parkUrl(variant),
+);
+const MODERN_BUILDING_URLS = Array.from(
+  { length: MODERN_BUILDING_SETS * 4 },
+  (_, index) => modernBuildingUrl(Math.floor(index / 4), (index % 4) + 1),
+);
 
-type ParkPart = {
+type ModelPart = {
   geometry: THREE.BufferGeometry;
   material: THREE.Material | THREE.Material[];
   matrix: THREE.Matrix4;
 };
 
-function ParkPartInstances({
+function ModelPartInstances({
   cells,
   part,
 }: {
   cells: BuildingCell[];
-  part: ParkPart;
+  part: ModelPart;
 }) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
 
@@ -103,6 +110,7 @@ function ParkPartInstances({
     }
 
     const placement = new THREE.Matrix4();
+    const turn = new THREE.Matrix4();
     const modelScale = new THREE.Matrix4().makeScale(
       CITY_MODEL_SCALE,
       CITY_MODEL_SCALE,
@@ -116,7 +124,8 @@ function ParkPartInstances({
 
     cells.forEach((cell, index) => {
       placement.makeTranslation(cell.x, 0, cell.z);
-      instanceMatrix.multiplyMatrices(placement, scaledPart);
+      turn.makeRotationY(cell.rotation);
+      instanceMatrix.multiplyMatrices(placement, turn).multiply(scaledPart);
       mesh.setMatrixAt(index, instanceMatrix);
     });
 
@@ -133,11 +142,18 @@ function ParkPartInstances({
   );
 }
 
-function ParkInstances({ cells }: { cells: BuildingCell[] }) {
-  const { scene } = useGLTF(PARK_MODEL_URL);
+/** 원점이 바닥 중앙인 glb 하나를 칸마다 균일 스케일·회전으로 인스턴싱한다 */
+function GltfModelInstances({
+  url,
+  cells,
+}: {
+  url: string;
+  cells: BuildingCell[];
+}) {
+  const { scene } = useGLTF(url);
   const parts = useMemo(() => {
     scene.updateMatrixWorld(true);
-    const modelParts: ParkPart[] = [];
+    const modelParts: ModelPart[] = [];
 
     scene.traverse((object) => {
       if (!(object instanceof THREE.Mesh)) {
@@ -157,7 +173,7 @@ function ParkInstances({ cells }: { cells: BuildingCell[] }) {
   return (
     <group>
       {parts.map((part, index) => (
-        <ParkPartInstances
+        <ModelPartInstances
           key={`${part.geometry.uuid}-${index}`}
           cells={cells}
           part={part}
@@ -167,113 +183,44 @@ function ParkInstances({ cells }: { cells: BuildingCell[] }) {
   );
 }
 
-useGLTF.preload(PARK_MODEL_URL);
-useGLTF.preload(MODERN_HIGHRISE_URL);
-
-type GltfPart = {
-  geometry: THREE.BufferGeometry;
-  material: THREE.Material | THREE.Material[];
-  matrix: THREE.Matrix4;
-};
-
-function ModernHighRisePartInstances({
-  cells,
-  part,
-  modelFootprint,
-  modelHeight,
-}: {
-  cells: BuildingCell[];
-  part: GltfPart;
-  modelFootprint: number;
-  modelHeight: number;
-}) {
-  const meshRef = useRef<THREE.InstancedMesh>(null);
-  const scaleXZ = BUILDING_FOOTPRINT / modelFootprint;
-
-  useLayoutEffect(() => {
-    const mesh = meshRef.current;
-    if (!mesh) {
-      return;
-    }
-
-    const placement = new THREE.Matrix4();
-    const scaleMatrix = new THREE.Matrix4();
-    const instanceMatrix = new THREE.Matrix4();
-
-    const scaledPart = new THREE.Matrix4();
-
-    cells.forEach((cell, index) => {
-      const targetHeight = heightFromContributionLevel(cell.level);
-      const scaleY = targetHeight / modelHeight;
-      scaleMatrix.makeScale(scaleXZ, scaleY, scaleXZ);
-      scaledPart.multiplyMatrices(scaleMatrix, part.matrix);
-      placement.makeTranslation(cell.x, 0, cell.z);
-      instanceMatrix.multiplyMatrices(placement, scaledPart);
-      mesh.setMatrixAt(index, instanceMatrix);
-    });
-
-    mesh.instanceMatrix.needsUpdate = true;
-  }, [cells, modelFootprint, modelHeight, part.matrix, scaleXZ]);
-
-  return (
-    <instancedMesh
-      ref={meshRef}
-      args={[part.geometry, part.material, cells.length]}
-      castShadow
-      receiveShadow
-    />
-  );
+for (const url of [...PARK_MODEL_URLS, ...MODERN_BUILDING_URLS]) {
+  useGLTF.preload(url);
 }
 
-function ModernHighRiseInstances({ cells }: { cells: BuildingCell[] }) {
-  const { scene } = useGLTF(MODERN_HIGHRISE_URL);
-  const model = useMemo(() => {
-    scene.updateMatrixWorld(true);
-    const bounds = new THREE.Box3().setFromObject(scene);
-    const size = new THREE.Vector3();
-    bounds.getSize(size);
-    const parts: GltfPart[] = [];
-
-    scene.traverse((object) => {
-      if (!(object instanceof THREE.Mesh)) {
-        return;
+/** 같은 glb를 쓰는 칸끼리 묶어서 모델별로 인스턴싱한다 */
+function VariantModelInstances({
+  cells,
+  urlFor,
+}: {
+  cells: BuildingCell[];
+  urlFor: (cell: BuildingCell) => string;
+}) {
+  const groups = useMemo(() => {
+    const byUrl = new Map<string, BuildingCell[]>();
+    for (const cell of cells) {
+      const url = urlFor(cell);
+      const group = byUrl.get(url);
+      if (group) {
+        group.push(cell);
+      } else {
+        byUrl.set(url, [cell]);
       }
-      if (object.name === "Floor_Grass") {
-        return;
-      }
-
-      parts.push({
-        geometry: object.geometry,
-        material: object.material,
-        matrix: object.matrixWorld.clone(),
-      });
-    });
-
-    return {
-      parts,
-      modelFootprint: Math.max(size.x, size.z),
-      modelHeight: size.y,
-    };
-  }, [scene]);
-
-  if (cells.length === 0 || model.parts.length === 0) {
-    return null;
-  }
+    }
+    return [...byUrl.entries()];
+  }, [cells, urlFor]);
 
   return (
     <group>
-      {model.parts.map((part, index) => (
-        <ModernHighRisePartInstances
-          key={`${part.geometry.uuid}-${index}`}
-          cells={cells}
-          part={part}
-          modelFootprint={model.modelFootprint}
-          modelHeight={model.modelHeight}
-        />
+      {groups.map(([url, groupCells]) => (
+        <GltfModelInstances key={url} url={url} cells={groupCells} />
       ))}
     </group>
   );
 }
+
+const modernUrlForCell = (cell: BuildingCell) =>
+  modernBuildingUrl(cell.variant, cell.level);
+const parkUrlForCell = (cell: BuildingCell) => parkUrl(cell.variant);
 
 function modelSize(value: number) {
   return value * CITY_MODEL_SCALE;
@@ -450,7 +397,7 @@ function ThemeBuildings({
     );
   }
 
-  return <ModernHighRiseInstances cells={cells} />;
+  return <VariantModelInstances cells={cells} urlFor={modernUrlForCell} />;
 }
 
 export function City({ days }: CityProps) {
@@ -484,7 +431,9 @@ export function City({ days }: CityProps) {
       {(Object.keys(buildingsByTheme) as BuildingTheme[]).map((theme) => (
         <ThemeBuildings key={theme} theme={theme} cells={buildingsByTheme[theme]} />
       ))}
-      {city.parks.length > 0 ? <ParkInstances cells={city.parks} /> : null}
+      {city.parks.length > 0 ? (
+        <VariantModelInstances cells={city.parks} urlFor={parkUrlForCell} />
+      ) : null}
       {city.years.slice(1).map(({ year }, index) => {
         const z = (index + 1) * ROWS_PER_YEAR * CELL_SIZE - CELL_SIZE / 2;
         return (

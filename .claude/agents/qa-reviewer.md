@@ -24,7 +24,7 @@ tools: Read, Grep, Glob, Bash
    - 0기여 칸이 공원 모델로 처리되는가
    - 비행 충돌 상자와 도시 경계 제한이 깨지지 않았는가
    - API 캐시 키와 `Cache-Control` 헤더가 기존 규칙을 유지하는가
-   - `City.tsx`의 glb 경로(`PARK_MODEL_URL`, `MODERN_HIGHRISE_URL`)가 `public/models/buildings/`의 실제 파일과 일치하는가
+   - `city.ts`의 glb 경로(`modernBuildingUrl`, `parkUrl`)와 높이 표(`MODERN_BUILDING_HEIGHTS`)가 `public/models/buildings/`의 실제 파일과 일치하는가
    - 새로 추가된 glb가 Git에 포함되도록 `public/models/` 아래에 있는가
    - 토큰이나 개인 정보가 클라이언트 번들이나 응답에 노출되지 않는가
 4. 판정은 근거와 함께 쓴다. 파일 경로와 줄 번호를 붙이고, 직접 확인한 사실과 추정을 구분한다.

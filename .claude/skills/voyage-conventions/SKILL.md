@@ -40,19 +40,20 @@ description: git-voyage 프로젝트의 도메인 규칙을 정리한다. 3D 도
 
 ## 3. 건물 높이와 색
 
-- 높이는 기여 수 또는 잔디 레벨에서 계산한다 (`heightFromCount`, `heightFromContributionLevel`).
-- 높이는 `MIN_HEIGHT`와 `MAX_HEIGHT` 사이로 제한한다.
-- 기여가 0인 날은 건물이 아니라 공원 모델(`park.glb`)로 표현한다.
+- 유럽·조선·일본풍은 기여 수에서 높이를 계산하고(`heightFromCount`), `MIN_HEIGHT`와 `MAX_HEIGHT` 사이로 제한한다.
+- 현대식은 잔디 단계(1~4)에 맞는 glb를 고르고, 높이는 glb 실측값 표 `MODERN_BUILDING_HEIGHTS`(city.ts)를 쓴다. 세트마다 단계 기준에서 ±15 m 다르며(최대 190 m), 단계별 범위가 겹치지 않아야 한다. glb를 바꾸면 이 표도 함께 고친다. 이 값이 비행 충돌 높이다.
+- 현대식 세트는 `(열 % 2) * 2 + (전체 행 % 2)`와 단계별 순열 `LEVEL_SET_ORDER`로 고른다. 주변 8칸에 같은 glb가 놓이지 않는 것을 보장하므로 해시나 랜덤으로 바꾸지 않는다. 칸마다 90° 단위 회전을 준다.
+- 기여가 0인 날은 건물이 아니라 공원 모델(`park.glb`, `park2.glb` 중 해시로 선택)로 표현한다.
 
 ## 4. glb 모델
 
 | 파일 | 용도 |
 | --- | --- |
-| `public/models/buildings/park.glb` | 0기여 칸 공원 |
-| `public/models/buildings/Modern_HighRise_4Level_Demo.glb` | 현대식 건물, 잔디 4단계 1~4가 높이 4단과 대응 |
-| `public/models/buildings/Modern_HighRise_3Level_Demo.glb` | 현재 코드에서 로드하지 않는 미사용 파일. README에도 없다. 쓰기 전까지 참조하지 않는다 |
+| `public/models/buildings/park.glb`, `park2.glb` | 0기여 칸 공원 (라운드 소프트 로우폴리) |
+| `public/models/buildings/modern_building_{세트}_{단계}Level_Demo.glb` | 현대식 건물 4세트 × 잔디 단계 1~4 (16개). 원본 단위로 ×7.5 균일 스케일, 원점 바닥 중앙 |
+| `public/models/buildings/Modern_HighRise_4Level_Demo.glb`, `Modern_HighRise_3Level_Demo.glb` | 현재 코드에서 로드하지 않는 미사용 파일. 쓰기 전까지 참조하지 않는다 |
 
-- 로드 경로는 `src/components/scene/City.tsx`의 `PARK_MODEL_URL`, `MODERN_HIGHRISE_URL`이다. 경로를 바꾸면 이 표도 함께 고친다.
+- 로드 경로는 `src/lib/city.ts`의 `modernBuildingUrl`, `parkUrl`이다. 경로를 바꾸면 이 표도 함께 고친다.
 - glb는 `asset-dev`가 Blender MCP로 만든다. 새 파일은 기존 파일을 덮어쓰지 않도록 새 이름으로 둔다.
 - 모델은 `public/models/`에 둬야 배포 환경에서 보인다. 커밋과 푸시가 필요하다.
 - 로딩에 실패하면 기본 박스로 대체한다. 앱 전체가 멈추지 않아야 한다.

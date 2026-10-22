@@ -11,3 +11,4 @@
 | --- | --- | --- | --- |
 | 2026-10-19 | Harness v2로 처음 구성 | 전체 | - |
 | 2026-10-19 | 프로젝트 상태 점검 후 `asset-dev` 에이전트 추가 (Blender MCP 연동), glb 검증·미사용 파일 표기, `_workspace/` gitignore 추가 | `.claude/agents/asset-dev.md`, `voyage-dev`, `voyage-conventions`, `qa-reviewer`, `.gitignore`, `CLAUDE.md` | Blender 연동 후 glb 제작 담당이 없었고, `Modern_HighRise_3Level_Demo.glb`가 코드에서 쓰이지 않음 |
+| 2026-10-22 | 현대식 건물 16종·공원 2종 glb와 이웃 규칙 반영, 삭제된 `PARK_MODEL_URL`·`MODERN_HIGHRISE_URL`·`heightFromContributionLevel` 참조 정리 | `voyage-conventions`, `qa-reviewer`, `asset-dev` | 건물 배치 코드가 칸별 glb 선택으로 바뀜 |
